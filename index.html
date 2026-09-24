@@ -24,16 +24,12 @@
       <label>剧目片段<input id="pieceName" placeholder="如：出场锣鼓-慢起"></label>
       <label>速度BPM<input id="bpmInput" type="number" min="40" max="220" value="96"></label>
       <label>循环小节
-        <select id="loopSelect">
-          <option value="">全段</option>
-          <option value="0">第1小节</option>
-          <option value="1">第2小节</option>
-          <option value="2">第3小节</option>
-          <option value="3">第4小节</option>
-        </select>
+        <select id="loopSelect"></select>
       </label>
       <label>难点批注<input id="noteInput" placeholder="如：第2小节小锣晚半拍"></label>
     </section>
+
+    <div id="message" class="message" role="status" aria-live="polite"></div>
 
     <section class="stage">
       <aside class="segments">
@@ -41,6 +37,7 @@
         <div id="savedList"></div>
       </aside>
       <section class="score">
+        <p class="meter-hint">每小节可选 2 / 3 / 4 / 5 拍：缩短时超出的口令自动搬入后一小节空拍，装不下则保留原拍号。</p>
         <div id="grid" class="grid"></div>
       </section>
       <aside class="notes">
@@ -51,6 +48,8 @@
       </aside>
     </section>
   </main>
+  <script src="./meter.js"></script>
+  <script src="./plan.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

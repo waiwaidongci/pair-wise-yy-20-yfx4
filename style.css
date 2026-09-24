@@ -134,17 +134,53 @@ select {
   padding: 12px;
 }
 
+.meter-hint {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.message {
+  display: none;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.message.show {
+  display: block;
+}
+
+.message.error {
+  border-color: var(--accent);
+  background: #fbe6e4;
+  color: #7c141b;
+}
+
+.message.ok {
+  border-color: var(--active);
+  background: #e2f0ec;
+  color: #11524f;
+}
+
 .grid {
   display: grid;
-  grid-template-columns: 76px repeat(16, minmax(48px, 1fr));
-  min-width: 850px;
+  grid-auto-rows: minmax(48px, auto);
+  min-width: 1060px;
   border-top: 1px solid var(--line);
   border-left: 1px solid var(--line);
 }
 
 .cell,
 .label-cell,
-.beat-cell {
+.beat-cell,
+.meter-cell {
   min-height: 48px;
   border-right: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
@@ -158,6 +194,33 @@ select {
   color: var(--muted);
   font-weight: 800;
   font-size: 13px;
+}
+
+.meter-cell {
+  display: grid;
+  place-items: center;
+  background: #f8f1e3;
+  padding: 4px 8px;
+}
+
+.meter-cell.barline,
+.beat-cell.barline,
+.cell.barline {
+  border-left: 3px solid var(--ink);
+}
+
+.meter-pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.meter-pick select {
+  width: auto;
+  padding: 4px 6px;
 }
 
 .cell {
