@@ -1,19 +1,6 @@
-const storageKey = "wxyy-4-luogujing-grid";
-const instruments = [
-  { name: "大锣", token: "仓", freq: 180 },
-  { name: "鼓", token: "冬", freq: 120 },
-  { name: "钹", token: "才", freq: 360 },
-  { name: "小锣", token: "台", freq: 520 }
-];
-const steps = 16;
-const state = JSON.parse(localStorage.getItem(storageKey) || "null") || {
-  pieceName: "出场锣鼓-慢起",
-  bpm: 96,
-  loop: "",
-  notes: [],
-  pattern: instruments.map((instrument) => Array.from({ length: steps }, (_, index) => index % 4 === 0 ? instrument.token : "")),
-  saved: []
-};
+const { instruments } = SchemeStore;
+const { MEASURE_COUNT, BEAT_CHOICES, totalBeats, measureRange, measureStarts, beatLabel, resizeMeasure } = MeterEngine;
+const state = SchemeStore.load();
 
 let timer = null;
 let playhead = 0;
@@ -23,54 +10,81 @@ const grid = document.querySelector("#grid");
 const savedList = document.querySelector("#savedList");
 const structure = document.querySelector("#structure");
 const notesList = document.querySelector("#notesList");
+const meterBar = document.querySelector("#meterBar");
+const messageBox = document.querySelector("#messageBox");
 const pieceName = document.querySelector("#pieceName");
 const bpmInput = document.querySelector("#bpmInput");
 const loopSelect = document.querySelector("#loopSelect");
 const noteInput = document.querySelector("#noteInput");
 
 function save() {
-  localStorage.setItem(storageKey, JSON.stringify(state));
+  SchemeStore.save(state);
+}
+
+function showMessage(text, isError = false) {
+  messageBox.textContent = text;
+  messageBox.className = isError ? "message show error" : "message show";
+  if (!text) messageBox.className = "message";
+}
+
+function clearMessageLater(delay = 3000) {
+  setTimeout(() => {
+    messageBox.textContent = "";
+    messageBox.className = "message";
+  }, delay);
 }
 
 function syncFields() {
   pieceName.value = state.pieceName;
   bpmInput.value = state.bpm;
+  loopSelect.innerHTML = ['<option value="">全段</option>']
+    .concat(state.meters.map((beats, measure) =>
+      `<option value="${measure}">第${measure + 1}小节（${beats}拍）</option>`))
+    .join("");
   loopSelect.value = state.loop;
-}
-
-function beatLabel(index) {
-  const measure = Math.floor(index / 4) + 1;
-  const beat = (index % 4) + 1;
-  return `${measure}-${beat}`;
+  meterBar.querySelectorAll("select").forEach((select, measure) => {
+    select.value = String(state.meters[measure]);
+  });
 }
 
 function renderGrid() {
+  const steps = totalBeats(state.meters);
+  const starts = new Set(measureStarts(state.meters));
   const header = ['<div class="label-cell">乐器</div>'];
   for (let i = 0; i < steps; i += 1) {
-    header.push(`<div class="beat-cell">${beatLabel(i)}</div>`);
+    header.push(
+      `<div class="beat-cell${starts.has(i) ? " measure-start" : ""}">${beatLabel(state.meters, i)}</div>`
+    );
   }
 
   const rows = instruments.flatMap((instrument, rowIndex) => {
     const row = [`<div class="label-cell">${instrument.name}</div>`];
     for (let step = 0; step < steps; step += 1) {
       const value = state.pattern[rowIndex][step];
-      row.push(`<button class="cell ${value ? "filled" : ""}" type="button" data-row="${rowIndex}" data-step="${step}">${value}</button>`);
+      row.push(
+        `<button class="cell ${value ? "filled" : ""}${starts.has(step) ? " measure-start" : ""}" `
+        + `type="button" data-row="${rowIndex}" data-step="${step}">${value}</button>`
+      );
     }
     return row;
   });
 
   grid.innerHTML = [...header, ...rows].join("");
+  grid.style.gridTemplateColumns = `76px repeat(${steps}, minmax(46px, 1fr))`;
+  grid.style.minWidth = `${850 + (steps - 16) * 46}px`;
 }
 
 function renderSidebars() {
-  const filledByMeasure = [0, 1, 2, 3].map((measure) => {
-    const start = measure * 4;
-    const count = state.pattern.flatMap((row) => row.slice(start, start + 4)).filter(Boolean).length;
-    return { measure: measure + 1, count };
-  });
-  structure.innerHTML = filledByMeasure.map((item) => `
-    <div class="structure-row"><span>第${item.measure}小节</span><strong>${item.count}个口令</strong></div>
-  `).join("");
+  // 段落统计按各小节实际拍数切分。
+  structure.innerHTML = state.meters.map((beats, measure) => {
+    const [start, end] = measureRange(state.meters, measure);
+    const count = state.pattern
+      .flatMap((row) => row.slice(start, end + 1))
+      .filter(Boolean).length;
+    return `
+      <div class="structure-row"><span>第${measure + 1}小节 · ${beats}拍</span><strong>${count}个口令</strong></div>
+    `;
+  }).join("");
 
   notesList.innerHTML = state.notes.length ? state.notes.map((note) => `
     <article class="note"><p>${note}</p></article>
@@ -78,7 +92,8 @@ function renderSidebars() {
 
   savedList.innerHTML = state.saved.length ? state.saved.map((item) => `
     <button class="saved-item" type="button" data-load="${item.id}">
-      <strong>${item.name}</strong><br><span>${item.bpm}BPM · ${item.notes.length}条批注</span>
+      <strong>${item.name}</strong><br>
+      <span>${item.bpm}BPM · 拍号 ${item.meters.join("/")} · ${item.notes.length}条批注</span>
     </button>
   `).join("") : "<p>还没有保存方案。</p>";
 }
@@ -87,6 +102,7 @@ function render() {
   syncFields();
   renderGrid();
   renderSidebars();
+  if (playhead >= totalBeats(state.meters)) playhead = totalBeats(state.meters) - 1;
 }
 
 function playSound(instrument) {
@@ -107,10 +123,10 @@ function highlight(step) {
   document.querySelectorAll(`[data-step="${step}"]`).forEach((cell) => cell.classList.add("playing"));
 }
 
+// 播放与循环范围都按各小节实际拍数走。
 function currentRange() {
-  if (state.loop === "") return [0, steps - 1];
-  const start = Number(state.loop) * 4;
-  return [start, start + 3];
+  if (state.loop === "") return [0, totalBeats(state.meters) - 1];
+  return measureRange(state.meters, Number(state.loop));
 }
 
 function tick() {
@@ -129,6 +145,42 @@ grid.addEventListener("click", (event) => {
   const row = Number(cell.dataset.row);
   const step = Number(cell.dataset.step);
   state.pattern[row][step] = state.pattern[row][step] ? "" : instruments[row].token;
+  save();
+  renderSidebars();
+  cell.classList.toggle("filled");
+  cell.textContent = state.pattern[row][step];
+});
+
+meterBar.addEventListener("change", (event) => {
+  const select = event.target.closest("select[data-measure]");
+  if (!select) return;
+  const measure = Number(select.dataset.measure);
+  const newBeats = Number(select.value);
+  const result = resizeMeasure(state.meters, state.pattern, measure, newBeats);
+
+  if (!result.ok) {
+    select.value = String(state.meters[measure]); // 拍号先不改
+    if (result.reason === "no-next") {
+      showMessage("末小节之后没有可接收口令的小节，拍号未改。", true);
+    } else {
+      const detail = result.unmoved
+        .map((entry) => `第${measure + 1}小节第${entry.beat}拍·${instruments[entry.row].name}“${entry.token}”`)
+        .join("；");
+      showMessage(`后一小节空拍不够，拍号未改。搬不动的口令：${detail}`, true);
+    }
+    clearMessageLater(5000);
+    return;
+  }
+
+  state.meters = result.meters;
+  state.pattern = result.pattern;
+  if (result.kind === "shortened") {
+    showMessage(`已改为${newBeats}拍，${result.moved}列口令搬入后一小节空拍。`);
+    clearMessageLater();
+  } else if (result.kind === "lengthened") {
+    showMessage(`已改为${newBeats}拍，多出的拍位保持空白。`);
+    clearMessageLater();
+  }
   save();
   render();
 });
@@ -175,17 +227,11 @@ document.querySelector("#stopBtn").addEventListener("click", () => {
 });
 
 document.querySelector("#saveBtn").addEventListener("click", () => {
-  state.saved.unshift({
-    id: crypto.randomUUID(),
-    name: state.pieceName || "未命名片段",
-    bpm: state.bpm,
-    loop: state.loop,
-    notes: [...state.notes],
-    pattern: state.pattern.map((row) => [...row]),
-    createdAt: new Date().toISOString()
-  });
+  state.saved.unshift(SchemeStore.snapshot(state));
   save();
   renderSidebars();
+  showMessage("方案已保存。");
+  clearMessageLater();
 });
 
 savedList.addEventListener("click", (event) => {
@@ -196,9 +242,21 @@ savedList.addEventListener("click", (event) => {
   state.bpm = item.bpm;
   state.loop = item.loop;
   state.notes = [...item.notes];
+  state.meters = [...item.meters];
   state.pattern = item.pattern.map((row) => [...row]);
+  playhead = 0;
   save();
   render();
 });
+
+// 初始化拍号选择条。
+meterBar.innerHTML = Array.from({ length: MEASURE_COUNT }, (_, measure) => {
+  const options = BEAT_CHOICES.map((beats) => `<option value="${beats}">${beats}拍</option>`).join("");
+  return `
+    <label class="meter-pick">第${measure + 1}小节
+      <select data-measure="${measure}">${options}</select>
+    </label>
+  `;
+}).join("");
 
 render();

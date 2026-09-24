@@ -136,10 +136,52 @@ select {
 
 .grid {
   display: grid;
-  grid-template-columns: 76px repeat(16, minmax(48px, 1fr));
+  grid-template-columns: 76px repeat(16, minmax(46px, 1fr));
   min-width: 850px;
   border-top: 1px solid var(--line);
   border-left: 1px solid var(--line);
+}
+
+.measure-start {
+  border-left: 3px double var(--accent);
+}
+
+.meter-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 12px;
+}
+
+.meter-pick {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.message {
+  min-height: 22px;
+  margin: 0 2px 10px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.message.show {
+  color: var(--active);
+}
+
+.message.error {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .cell,
@@ -229,5 +271,9 @@ select {
   .transport {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .meter-bar {
+    grid-template-columns: 1fr 1fr;
   }
 }
